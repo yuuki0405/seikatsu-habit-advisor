@@ -266,22 +266,24 @@ function scoreFeedback(score, previousScore) {
 }
 
 // ---------- API ----------
+const API_BASE_URL = 'https://seikatsu-habit-advisor-api.onrender.com';
+
 async function callClaude(system, messages) {
-  async function once() {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+  let res;
+  try {
+    res = await fetch(`${API_BASE_URL}/v1/messages`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1000, system, messages })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ system, messages })
     });
-    if (!res.ok) {
-      let t = ''; try { t = await res.text(); } catch (e) {}
-      throw new Error('API ' + res.status + ' ' + t.slice(0, 200));
-    }
-    return res.json();
+  } catch (err) {
+    throw new Error('API中継に接続できません。RenderへのデプロイとURLを確認してください。');
   }
-  let data;
-  try { data = await once(); }
-  catch (e) { await new Promise(r => setTimeout(r, 1200)); data = await once(); }
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error(data && data.error ? data.error : `APIエラー（${res.status}）`);
+  }
+  if (!data) throw new Error('APIから正しい形式の応答がありません。');
   const text = (data.content || []).map(b => b.text || '').join('\n').trim();
   if (!text) throw new Error('空の応答（stop_reason: ' + (data.stop_reason || 'unknown') + '）');
   return text;
