@@ -1,22 +1,33 @@
-# 生活習慣アドバイザーAI API
+# 生活習慣アドバイザーAI
 
-GitHub Pages上の確認用画面からAnthropic APIへ接続するための小さな中継APIです。解析・相談の指示文はサーバー側で固定し、Anthropic APIキーはRenderの環境変数にのみ設定します。キーはHTMLやGitHubには保存しません。
+GitHub Pagesの画面からCloudflare Workers AIを呼び出す、無料枠を使ったサーバー側中継です。プロバイダーAPIキーは不要です。AI呼び出しはCloudflare Workers AIの無料枠を消費します。
 
-## Renderへのデプロイ
+## Cloudflare Workerの公開
 
-1. Renderにサインインし、**New + → Blueprint**からこのGitHubリポジトリを選びます。
-2. `render.yaml` の内容を確認してデプロイします。
-3. サービスのEnvironmentで `ANTHROPIC_API_KEY` にAnthropic Consoleで発行したキーを設定し、再デプロイします。キーはソースコードやチャットに貼らないでください。
-4. `https://seikatsu-habit-advisor-api.onrender.com/health` を開き、`{"ok":true,"api_key_configured":true}` が返ることを確認します。
-5. サービス名が変わった場合は、そのサービスの `onrender.com` URLに合わせて `index.html` の `API_BASE_URL` を更新し、GitHub Pagesへ再デプロイします。
+1. Cloudflareにサインインし、**Workers & Pages**から新しいWorkerを作成して、GitHub連携を選びます。
+2. `yuuki0405/seikatsu-habit-advisor` の `main` ブランチを選択し、リポジトリのルートをデプロイ元にします。
+3. Worker名を `seikatsu-habit-advisor-ai` にします。リポジトリの `wrangler.toml` にあるWorkers AI binding（`AI`）が設定に反映されていることを確認し、デプロイします。
+4. Workerの `workers.dev` URLを確認します。形式は `https://seikatsu-habit-advisor-ai.<アカウントのサブドメイン>.workers.dev` です。
+5. `index.html` の `API_BASE_URL` に実際のURLを入れて `main` ブランチへ反映します。GitHub Pagesのデプロイ後、次を開いて `{"ok":true,"ai_binding_configured":true}` が返ることを確認します。
 
-Anthropic Console側で利用上限を設定してください。このAPIにはIPごとの制限（1分6回、24時間40回）とサービス全体の制限（24時間100回）がありますが、公開エンドポイントの完全な不正利用防止を保証するものではありません。制限はサービス再起動時にリセットされます。
+   `https://<WorkerのURL>/health`
+
+6. [公開ページ](https://yuuki0405.github.io/seikatsu-habit-advisor/)から記録・相談をテストします。
+
+Workers AIのbindingは[公式手順](https://developers.cloudflare.com/workers-ai/configuration/bindings/)を参照してください。Git連携によるWorkerの自動デプロイは[Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/)に説明があります。
+
+## 無料枠と制限
+
+- Workers AIの無料割当は、アカウント合計で**1日10,000 Neurons**です。UTC 00:00にリセットされます。無料プランでは割当を超えるとAIリクエストが失敗します。Workers Paidプランでは無料割当超過分が課金されるため、無料だけで使うならWorkers Freeプランを利用してください。Worker AI bindingそのものにAnthropicやGeminiのAPIキーは不要です。
+- 使用モデルは `@cf/meta/llama-3.1-8b-instruct` です。Cloudflareの[料金表](https://developers.cloudflare.com/workers-ai/platform/pricing/)と[利用上限](https://developers.cloudflare.com/workers-ai/platform/limits/)を確認してください。無料割当やモデル提供条件は変更されることがあります。
+- WorkerにはOriginチェックと簡易レート制限があります。ただしCORSは認証ではなく、レート制限はWorkerインスタンス内の一時的な制限です。完全な不正利用防止ではありません。公開前にCloudflareの利用量を確認してください。
+
+生活・健康に関する内容を扱うため、個人を特定できる情報や共有したくない情報は入力しないでください。
 
 ## ローカルテスト
 
-```powershell
-python -m pip install -r requirements.txt
-python -m unittest
-```
+Node.jsの組み込みテストランナーでテストできます。外部依存のインストールは不要です。
 
-ローカルでHTTP経由のAI呼び出しを試す場合は `ANTHROPIC_API_KEY` を環境変数に設定してから `python app.py` を実行します。
+```powershell
+npm test
+```

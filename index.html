@@ -266,9 +266,12 @@ function scoreFeedback(score, previousScore) {
 }
 
 // ---------- API ----------
-const API_BASE_URL = 'https://seikatsu-habit-advisor-api.onrender.com';
+const API_BASE_URL = 'https://seikatsu-habit-advisor-ai.YOUR_ACCOUNT_SUBDOMAIN.workers.dev';
 
-async function callClaude(task, messages, context = '') {
+async function callAI(task, messages, context = '') {
+  if (API_BASE_URL.includes('YOUR_ACCOUNT_SUBDOMAIN')) {
+    throw new Error('Cloudflare WorkerのURLが未設定です。READMEの公開手順を完了してください。');
+  }
   let res;
   try {
     res = await fetch(`${API_BASE_URL}/v1/messages`, {
@@ -277,7 +280,7 @@ async function callClaude(task, messages, context = '') {
       body: JSON.stringify({ task, messages, context })
     });
   } catch (err) {
-    throw new Error('API中継に接続できません。RenderへのデプロイとURLを確認してください。');
+    throw new Error('API中継に接続できません。Cloudflare WorkerのデプロイとURLを確認してください。');
   }
   const data = await res.json().catch(() => null);
   if (!res.ok) {
@@ -296,7 +299,7 @@ function categoryLabel(cat) {
 // ---------- 記録 ----------
 async function analyzeLog(text) {
   const user = `ログ：「${text}」`;
-  const raw = await callClaude('analyze', [{ role: 'user', content: user }]);
+  const raw = await callAI('analyze', [{ role: 'user', content: user }]);
   const s = raw.indexOf('{'), e = raw.lastIndexOf('}');
   if (s === -1 || e < s) throw new Error('JSONが見つかりません: ' + raw.slice(0, 150));
   try { return JSON.parse(raw.slice(s, e + 1)); }
@@ -447,7 +450,7 @@ async function sendChat(text) {
   $('chatSend').disabled = true;
   setStatus($('chatStatus'), '考えています…');
   try {
-    const reply = await callClaude('chat', chatHistory.slice(-12), buildChatContext());
+    const reply = await callAI('chat', chatHistory.slice(-12), buildChatContext());
     chatHistory.push({ role: 'assistant', content: reply });
     addBubble('ai', reply);
     setStatus($('chatStatus'), '');
