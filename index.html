@@ -266,12 +266,9 @@ function scoreFeedback(score, previousScore) {
 }
 
 // ---------- API ----------
-const API_BASE_URL = 'https://seikatsu-habit-advisor-ai.YOUR_ACCOUNT_SUBDOMAIN.workers.dev';
+const API_BASE_URL = 'https://seikatsu-habit-advisor-ai.suiginyu.workers.dev';
 
 async function callAI(task, messages, context = '') {
-  if (API_BASE_URL.includes('YOUR_ACCOUNT_SUBDOMAIN')) {
-    throw new Error('Cloudflare WorkerのURLが未設定です。READMEの公開手順を完了してください。');
-  }
   let res;
   try {
     res = await fetch(`${API_BASE_URL}/v1/messages`, {

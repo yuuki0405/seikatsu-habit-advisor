@@ -7,12 +7,12 @@ GitHub Pagesの画面からCloudflare Workers AIを呼び出す、無料枠を�
 1. Cloudflareにサインインし、**Workers & Pages**から新しいWorkerを作成して、GitHub連携を選びます。
 2. `yuuki0405/seikatsu-habit-advisor` の `main` ブランチを選択し、リポジトリのルートをデプロイ元にします。
 3. Worker名を `seikatsu-habit-advisor-ai` にします。リポジトリの `wrangler.toml` にあるWorkers AI binding（`AI`）が設定に反映されていることを確認し、デプロイします。
-4. Workerの `workers.dev` URLを確認します。形式は `https://seikatsu-habit-advisor-ai.<アカウントのサブドメイン>.workers.dev` です。
-5. `index.html` の `API_BASE_URL` に実際のURLを入れて `main` ブランチへ反映します。GitHub Pagesのデプロイ後、次を開いて `{"ok":true,"ai_binding_configured":true}` が返ることを確認します。
+4. Workerの `workers.dev` URLは `https://seikatsu-habit-advisor-ai.suiginyu.workers.dev` です。`index.html` には設定済みです。
+5. デプロイ後、次を開いて `{"ok":true,"ai_binding_configured":true}` が返ることを確認します。
 
-   `https://<WorkerのURL>/health`
+   `https://seikatsu-habit-advisor-ai.suiginyu.workers.dev/health`
 
-6. [公開ページ](https://yuuki0405.github.io/seikatsu-habit-advisor/)から記録・相談をテストします。
+6. [公開ページ](https://yuuki0405.github.io/seikatsu-habit-advisor/)から記録・相談をテストします。Git連携済みなら、`main`へのpush後にページが自動更新されます。
 
 Workers AIのbindingは[公式手順](https://developers.cloudflare.com/workers-ai/configuration/bindings/)を参照してください。Git連携によるWorkerの自動デプロイは[Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/)に説明があります。
 
