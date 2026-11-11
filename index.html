@@ -268,13 +268,13 @@ function scoreFeedback(score, previousScore) {
 // ---------- API ----------
 const API_BASE_URL = 'https://seikatsu-habit-advisor-api.onrender.com';
 
-async function callClaude(system, messages) {
+async function callClaude(task, messages, context = '') {
   let res;
   try {
     res = await fetch(`${API_BASE_URL}/v1/messages`, {
       method: "POST",
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ system, messages })
+      body: JSON.stringify({ task, messages, context })
     });
   } catch (err) {
     throw new Error('API中継に接続できません。RenderへのデプロイとURLを確認してください。');
@@ -295,11 +295,8 @@ function categoryLabel(cat) {
 
 // ---------- 記録 ----------
 async function analyzeLog(text) {
-  const sys = `生活習慣アドバイザーAI。ユーザーの1日の生活ログを読み、次のJSON形式のみで返答（説明・コードフェンス不要）:
-{"tags":[{"category":"water|caffeine|meal|sleep|exercise|mental|rhythm","value":"内容"}],"summary":"傾向の要約(30〜50字)","suggestions":["改善提案1","改善提案2","改善提案3"],"metrics":{"sleep_h":数値またはnull,"water_ml":数値またはnull,"caffeine_mg":数値またはnull,"exercise_min":数値またはnull},"meal_mood_rating":1〜5の整数またはnull}
-metricsはログに書かれている内容から推定（コーヒー1杯≒90mg、紅茶≒40mg、緑茶≒30mg、エナジードリンク1本≒80mgとして換算）。記載がない項目はnull。食事・気分の評価は記録に根拠がある場合のみ返し、1=とても悪い、3=普通、5=とても良い（2と4は中間）、根拠がなければnull。tagsは最大5件、suggestionsは3〜4件で具体的に。スコアはアプリ側で固定ルールにより計算する。`;
   const user = `ログ：「${text}」`;
-  const raw = await callClaude(sys, [{ role: 'user', content: user }]);
+  const raw = await callClaude('analyze', [{ role: 'user', content: user }]);
   const s = raw.indexOf('{'), e = raw.lastIndexOf('}');
   if (s === -1 || e < s) throw new Error('JSONが見つかりません: ' + raw.slice(0, 150));
   try { return JSON.parse(raw.slice(s, e + 1)); }
@@ -449,13 +446,8 @@ async function sendChat(text) {
   chatHistory.push({ role: 'user', content: text });
   $('chatSend').disabled = true;
   setStatus($('chatStatus'), '考えています…');
-  const sys = `あなたは親しみやすい生活習慣コーチです。ユーザーの食事・睡眠・運動・水分・カフェイン・気分の相談に、日本語で具体的かつ簡潔（3〜6文程度）に答えます。
-- 実行しやすい小さな行動を1〜2個、具体的な数字つきで提案する
-- 医療行為や診断はしない。強い症状、長引く不調、気分の落ち込みが続く場合は医療機関への相談を勧める
-- 以下はユーザーの最新の記録。関係があるときだけ参照する。
-${buildChatContext()}`;
   try {
-    const reply = await callClaude(sys, chatHistory.slice(-12));
+    const reply = await callClaude('chat', chatHistory.slice(-12), buildChatContext());
     chatHistory.push({ role: 'assistant', content: reply });
     addBubble('ai', reply);
     setStatus($('chatStatus'), '');

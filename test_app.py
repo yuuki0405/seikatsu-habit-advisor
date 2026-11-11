@@ -30,9 +30,7 @@ class MessagesApiTests(unittest.TestCase):
             json=lambda: {"content": [{"type": "text", "text": "OK"}]},
         )
         response = self.post({
-            "model": "attacker-controlled-model",
-            "max_tokens": 999999,
-            "system": "system",
+            "task": "analyze",
             "messages": [{"role": "user", "content": "hello"}],
         })
 
@@ -43,6 +41,7 @@ class MessagesApiTests(unittest.TestCase):
         self.assertEqual(kwargs["headers"]["x-api-key"], "test-key")
         self.assertEqual(kwargs["json"]["model"], api.ANTHROPIC_MODEL)
         self.assertEqual(kwargs["json"]["max_tokens"], 1000)
+        self.assertEqual(kwargs["json"]["system"], api.ANALYSIS_SYSTEM)
 
     def test_rejects_untrusted_origin(self):
         response = self.post(
@@ -64,10 +63,34 @@ class MessagesApiTests(unittest.TestCase):
 
     def test_rejects_invalid_message(self):
         response = self.post({
-            "system": "system",
+            "task": "chat",
             "messages": [{"role": "system", "content": "not allowed"}],
         })
         self.assertEqual(response.status_code, 400)
+
+    def test_rejects_unknown_task_and_client_prompt(self):
+        response = self.post({
+            "task": "custom",
+            "system": "arbitrary prompt",
+            "messages": [{"role": "user", "content": "hello"}],
+        })
+        self.assertEqual(response.status_code, 400)
+
+    @patch("app.requests.post")
+    def test_chat_uses_server_prompt_and_bounded_context(self, upstream_post):
+        upstream_post.return_value = Mock(
+            ok=True,
+            json=lambda: {"content": [{"type": "text", "text": "OK"}]},
+        )
+        response = self.post({
+            "task": "chat",
+            "context": "recent record",
+            "messages": [{"role": "user", "content": "hello"}],
+        })
+        self.assertEqual(response.status_code, 200)
+        upstream_system = upstream_post.call_args.kwargs["json"]["system"]
+        self.assertIn(api.CHAT_SYSTEM, upstream_system)
+        self.assertIn("recent record", upstream_system)
 
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": ""})
     def test_reports_missing_server_key(self):
@@ -83,7 +106,7 @@ class MessagesApiTests(unittest.TestCase):
             ok=True,
             json=lambda: {"content": [{"type": "text", "text": "OK"}]},
         )
-        payload = {"system": "system", "messages": [{"role": "user", "content": "hello"}]}
+        payload = {"task": "analyze", "messages": [{"role": "user", "content": "hello"}]}
         responses = [self.post(payload) for _ in range(api.REQUESTS_PER_MINUTE + 1)]
         self.assertEqual([response.status_code for response in responses].count(429), 1)
 

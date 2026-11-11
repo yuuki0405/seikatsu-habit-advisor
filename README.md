@@ -1,6 +1,6 @@
 # 生活習慣アドバイザーAI API
 
-GitHub Pages上の確認用画面からAnthropic APIへ接続するための小さな中継APIです。Anthropic APIキーはRenderの環境変数にのみ設定し、HTMLやGitHubには保存しません。
+GitHub Pages上の確認用画面からAnthropic APIへ接続するための小さな中継APIです。解析・相談の指示文はサーバー側で固定し、Anthropic APIキーはRenderの環境変数にのみ設定します。キーはHTMLやGitHubには保存しません。
 
 ## Renderへのデプロイ
 
