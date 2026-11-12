@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+rあふ<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -83,8 +83,13 @@
   .metric-tabs button.active { background: var(--primary-deep); color: #fff; border-color: var(--primary-deep); }
   .chart-card { background: var(--paper); border: 1px solid var(--line); border-radius: 18px; padding: 18px; margin-bottom: 18px; }
   .chart-card svg { width: 100%; height: auto; display: block; }
-  .legend { display: flex; gap: 18px; font-size: 12.5px; color: var(--sub); margin-top: 8px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 12.5px; color: var(--sub); margin-top: 8px; }
   .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 5px; }
+  .legend-line { display: inline-block; width: 20px; border-top: 2px solid var(--primary); }
+  .legend-line.guideline { border-color: #b36b00; border-top-style: dashed; }
+  .legend-line.survey { border-color: var(--plum); }
+  .legend-line.survey-female { border-color: #a3637d; border-top-style: dotted; }
   .compare-row { margin-bottom: 16px; }
   .compare-head { display: flex; justify-content: space-between; font-size: 13.5px; margin-bottom: 5px; }
   .compare-head span { color: var(--sub); font-size: 12.5px; }
@@ -129,8 +134,9 @@
         <label class="log-field">おやつ・間食<textarea id="snacksInput" maxlength="800" placeholder="例：チョコレート2かけ、ヨーグルト1個"></textarea></label>
         <label class="log-field wide">飲み物（種類・量）<textarea id="drinksInput" maxlength="800" placeholder="例：水500ml、緑茶350ml、エナジードリンク1本（商品名・容量）"></textarea></label>
         <label class="log-field">水・お茶などの水分量（ml・任意）<input id="waterInput" type="number" min="0" max="10000" step="50" inputmode="numeric" placeholder="例：1200"></label>
-        <label class="log-field">運動の内容<input id="exerciseInput" type="text" maxlength="300" placeholder="例：通学で徒歩、軽い筋トレ"></label>
-        <label class="log-field">運動時間（分・任意）<input id="exerciseMinutesInput" type="number" min="0" max="1440" step="1" inputmode="numeric" placeholder="例：30"></label>
+        <label class="log-field">身体活動の内容<input id="exerciseInput" type="text" maxlength="300" placeholder="例：通学の歩行、家事、運動"></label>
+        <label class="log-field">身体活動の合計時間（分・任意）<input id="exerciseMinutesInput" type="number" min="0" max="1440" step="1" inputmode="numeric" placeholder="例：60"></label>
+        <label class="log-field">歩数（歩・任意）<input id="stepsInput" type="number" min="0" max="100000" step="100" inputmode="numeric" placeholder="例：6500"></label>
         <label class="log-field">睡眠時間（時間・任意）<input id="sleepInput" type="number" min="0" max="24" step="0.25" inputmode="decimal" placeholder="例：7.5"></label>
       </div>
       <div class="entry-footer">
@@ -183,13 +189,19 @@
       <div class="metric-tabs" id="metricTabs"></div>
       <div class="chart-card">
         <svg id="chartSvg" viewBox="0 0 560 250" role="img" aria-label="記録の推移グラフ"></svg>
-        <div class="legend"><span><i style="background:var(--primary)"></i>あなたの記録</span></div>
+        <div class="legend" id="chartLegend"></div>
+        <p class="note" id="chartReferenceNote"></p>
       </div>
       <div class="chart-card">
         <div style="font-size:14px;font-weight:700;margin-bottom:14px;">記録した数値の平均（未入力日は除外）</div>
         <div id="compareList"></div>
       </div>
-      <p class="note">グラフは入力された数値の推移を示すもので、健康状態の評価や診断ではありません。</p>
+      <p class="note">基準線は一般成人の公的調査平均と健康づくりの目安を区別して表示します。調査平均は健康な人だけの平均ではありません。年齢・性別で異なる目安は別々に示し、参考値が確認できない項目には線を表示しません。いずれも個人の適正値や診断ではありません。<br>
+        出典：
+        <a href="https://www.mhlw.go.jp/stf/newpage_45540.html" target="_blank" rel="noopener noreferrer">厚生労働省「令和5年 国民健康・栄養調査」</a>、
+        <a href="https://www.mhlw.go.jp/content/001194020.pdf" target="_blank" rel="noopener noreferrer">身体活動・運動ガイド2023</a>、
+        <a href="https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/kenkou_iryou/kenkou/suimin/index.html" target="_blank" rel="noopener noreferrer">健康づくりのための睡眠ガイド2023</a>。
+      </p>
       <button class="sample-btn" id="sampleBtn2">サンプルデータ（7日分）を読み込む</button>
     </div>
   </div>
@@ -210,10 +222,31 @@ const chatHistory = []; // {role, content}
 const STORAGE_KEY = 'dailyHabitAdvisor.entries.v1';
 
 const METRICS = [
-  { key: 'sleep_h', label: '睡眠', unit: '時間', max: 10 },
-  { key: 'water_ml', label: '水分', unit: 'ml', max: 2500 },
-  { key: 'caffeine_mg', label: 'カフェイン', unit: 'mg', max: 700 },
-  { key: 'exercise_min', label: '運動', unit: '分', max: 120 }
+  {
+    key: 'sleep_h', label: '睡眠', unit: '時間', max: 10,
+    references: [{ value: 6, label: '成人の目安（6時間以上）', kind: 'guideline' }],
+    note: '睡眠ガイドは成人について6時間以上を目安に必要な睡眠時間を確保するよう勧めています。必要な睡眠時間には個人差があります。'
+  },
+  { key: 'water_ml', label: '水分', unit: 'ml', max: 2500, references: [], note: '水分の必要量は食事・体格・活動・気温などで異なるため、一律の公的基準線は表示していません。' },
+  { key: 'caffeine_mg', label: 'カフェイン', unit: 'mg', max: 700, references: [], note: 'カフェイン量は商品・容量で異なり、日本の一般成人に一律適用できる公的な平均・基準線を確認できないため表示していません。' },
+  {
+    key: 'exercise_min', label: '身体活動', unit: '分', max: 120,
+    references: [
+      { value: 60, label: '18〜64歳の目安（60分）', kind: 'guideline' },
+      { value: 40, label: '65歳以上の目安（40分）', kind: 'guideline' }
+    ],
+    note: '目安の時間は運動だけでなく、通勤・通学・家事・歩行などの身体活動を含みます。'
+  },
+  {
+    key: 'steps', label: '歩数', unit: '歩', max: 12000,
+    references: [
+      { value: 6628, label: '一般成人平均・男性（20歳以上）', kind: 'survey' },
+      { value: 5659, label: '一般成人平均・女性（20歳以上）', kind: 'survey' },
+      { value: 8000, label: '18〜64歳の目安', kind: 'guideline' },
+      { value: 6000, label: '65歳以上の目安', kind: 'guideline' }
+    ],
+    note: '調査平均は令和5年の20歳以上の男女別平均です。年齢・性別を絞った「健康な人」の平均ではありません。'
+  }
 ];
 let activeMetric = 'sleep_h';
 
@@ -242,6 +275,7 @@ function isSavedEntry(entry) {
     && typeof entry.rawText === 'string' && (entry.score === null || (Number.isInteger(entry.score) && entry.score >= 0 && entry.score <= 100))
     && entry.metrics && typeof entry.metrics === 'object' && !Array.isArray(entry.metrics)
     && ['sleep_h', 'water_ml', 'caffeine_mg', 'exercise_min'].every(key => validMetric(entry.metrics[key]))
+    && (entry.metrics.steps === undefined || validMetric(entry.metrics.steps))
     && (entry.meal_mood_rating === null || (Number.isInteger(entry.meal_mood_rating) && entry.meal_mood_rating >= 1 && entry.meal_mood_rating <= 5))
     && Array.isArray(entry.tags) && entry.tags.every(tag => tag && typeof tag.category === 'string' && typeof tag.value === 'string')
     && typeof entry.summary === 'string' && typeof entry.feedback === 'string'
@@ -323,6 +357,7 @@ function normalizeResult(result, dailyLog = null) {
     if (dailyLog.sleep_h !== null) metrics.sleep_h = dailyLog.sleep_h;
     if (dailyLog.water_ml !== null) metrics.water_ml = dailyLog.water_ml;
     if (dailyLog.exercise_min !== null) metrics.exercise_min = dailyLog.exercise_min;
+    if (dailyLog.steps !== null) metrics.steps = dailyLog.steps;
   }
   return {
     ...result,
@@ -381,6 +416,7 @@ $('submitBtn').addEventListener('click', async () => {
     water_ml: null,
     exercise: $('exerciseInput').value.trim(),
     exercise_min: null,
+    steps: null,
     sleep_h: null
   };
   const readNumber = (id, label, min, max) => {
@@ -395,6 +431,7 @@ $('submitBtn').addEventListener('click', async () => {
   try {
     dailyLog.water_ml = readNumber('waterInput', '水分量', 0, 10000);
     dailyLog.exercise_min = readNumber('exerciseMinutesInput', '運動時間', 0, 1440);
+    dailyLog.steps = readNumber('stepsInput', '歩数', 0, 100000);
     dailyLog.sleep_h = readNumber('sleepInput', '睡眠時間', 0, 24);
   } catch (err) {
     setStatus($('status'), err.message, true);
@@ -539,7 +576,10 @@ function renderGraph() {
     b.addEventListener('click', () => { activeMetric = m.key; renderGraph(); });
     $('metricTabs').appendChild(b);
   });
-  drawChart(METRICS.find(m => m.key === activeMetric));
+  const metric = METRICS.find(m => m.key === activeMetric);
+  drawChart(metric);
+  renderChartLegend(metric);
+  $('chartReferenceNote').textContent = metric.note;
   drawCompare();
 }
 
@@ -561,11 +601,12 @@ function drawChart(m) {
   const W = 560, H = 250, L = 46, R = 16, T = 18, B = 34;
   const pts = entries.map((e, i) => ({ i, label: e.label, v: e.metrics ? e.metrics[m.key] : null }));
   const vals = pts.filter(p => typeof p.v === 'number');
-  const maxV = Math.max(m.max, ...vals.map(p => p.v));
+  const maxV = Math.max(m.max, ...vals.map(p => p.v), ...m.references.map(reference => reference.value));
   const x = (i) => entries.length === 1 ? (L + W - R) / 2 : L + (W - L - R) * i / (entries.length - 1);
   const y = (v) => T + (H - T - B) * (1 - v / maxV);
   const NS = 'http://www.w3.org/2000/svg';
   const svg = $('chartSvg'); svg.innerHTML = '';
+  svg.setAttribute('aria-label', `${m.label}の推移と参考線`);
   const add = (tag, attrs, text) => { const el = document.createElementNS(NS, tag); for (const k in attrs) el.setAttribute(k, attrs[k]); if (text != null) el.textContent = text; svg.appendChild(el); return el; };
 
   // grid + y labels
@@ -574,6 +615,16 @@ function drawChart(m) {
     add('line', { x1: L, x2: W - R, y1: yy, y2: yy, stroke: '#dbe6e3', 'stroke-width': 1 });
     add('text', { x: L - 8, y: yy + 4, 'text-anchor': 'end', 'font-size': 11, fill: '#5c7a76' }, Math.round(v * 10) / 10);
   }
+  m.references.forEach(reference => {
+    const isSurvey = reference.kind === 'survey';
+    const femaleSurvey = reference.label.includes('女性');
+    add('line', {
+      x1: L, x2: W - R, y1: y(reference.value), y2: y(reference.value),
+      stroke: isSurvey ? (femaleSurvey ? '#a3637d' : '#6d2e46') : '#b36b00',
+      'stroke-width': 2,
+      'stroke-dasharray': isSurvey ? (femaleSurvey ? '2 4' : '') : '7 5'
+    });
+  });
   // x labels
   pts.forEach(p => add('text', { x: x(p.i), y: H - 12, 'text-anchor': 'middle', 'font-size': 11, fill: '#5c7a76' }, p.label));
   // line
@@ -585,6 +636,27 @@ function drawChart(m) {
     add('text', { x: x(p.i), y: y(p.v) - 10, 'text-anchor': 'middle', 'font-size': 11, fill: '#0b2e33', 'font-weight': 700 }, p.v);
   });
   if (!vals.length) add('text', { x: W / 2, y: H / 2, 'text-anchor': 'middle', 'font-size': 13, fill: '#5c7a76' }, 'この項目の記録がまだありません');
+}
+
+function renderChartLegend(metric) {
+  const legend = $('chartLegend');
+  legend.innerHTML = '';
+  const addItem = (label, className) => {
+    const item = document.createElement('span');
+    item.className = 'legend-item';
+    const line = document.createElement('i');
+    line.className = 'legend-line' + (className ? ` ${className}` : '');
+    const text = document.createElement('span');
+    text.textContent = label;
+    item.append(line, text);
+    legend.appendChild(item);
+  };
+  addItem('あなたの記録', '');
+  metric.references.forEach(reference => {
+    const femaleSurvey = reference.kind === 'survey' && reference.label.includes('女性');
+    const className = reference.kind === 'guideline' ? 'guideline' : femaleSurvey ? 'survey-female' : 'survey';
+    addItem(`${reference.label}: ${reference.value.toLocaleString('ja-JP')}${metric.unit}`, className);
+  });
 }
 
 function drawCompare() {
