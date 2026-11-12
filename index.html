@@ -59,6 +59,16 @@
   .analysis-section h2 { font-size: 15px; margin: 0 0 8px; color: var(--primary-deep); }
   .analysis-section ul { margin: 0; padding-left: 20px; font-size: 14px; }
   .analysis-section li + li { margin-top: 6px; }
+  .challenge-progress { width: 100%; height: 10px; accent-color: var(--primary); }
+  .challenge-action { font-family: 'Shippori Mincho', serif; font-size: 16px; color: var(--primary-deep); }
+  .challenge-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .challenge-controls button, .challenge-controls select, .challenge-controls input {
+    border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; font: inherit; font-size: 13px; background: #fff; color: var(--ink);
+  }
+  .challenge-controls button { cursor: pointer; }
+  .challenge-controls button.primary { background: var(--primary-deep); border-color: var(--primary-deep); color: #fff; }
+  .challenge-controls select, .challenge-controls input { flex: 1 1 180px; min-width: 0; }
+  .challenge-status { font-size: 13px; color: var(--sub); margin: 10px 0 0; }
   .suggestions { list-style: none; padding: 0; margin: 0 0 8px; }
   .suggestions li { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14.5px; }
   .suggestions li:last-child { border-bottom: none; }
@@ -123,9 +133,15 @@
 
   <!-- 記録 -->
   <div class="panel active" id="panel-log">
+    <section class="analysis-section" aria-labelledby="challengeTitle">
+      <h2 id="challengeTitle">7日間の小さなチャレンジ</h2>
+      <p class="note">AIの提案から1つ選び、できたか・難しかったかを振り返ります。毎日でなくても大丈夫。難しかった理由に合わせて次の行動を調整します。記録はこのブラウザー内に保存されます。</p>
+      <div id="challengeContent"></div>
+      <p class="status" id="challengeStatus" role="status"></p>
+    </section>
     <div class="entry-card">
       <p class="entry-label">今日の記録</p>
-      <p class="note">送信すると記録内容はAI応答の生成のためCloudflare Workers AIへ送信されます。このアプリはサーバー上に記録を保存しません。個人情報や共有したくない内容は入力しないでください。</p>
+      <p class="note">送信すると記録内容とチャレンジの直近の振り返りはAI応答の生成のためCloudflare Workers AIへ送信されます。このアプリはサーバー上に記録を保存しません。個人情報や共有したくない内容は入力しないでください。</p>
       <p class="note">食べたもの・量は分かる範囲で記入してください。量や商品情報がない場合、栄養素の数値は推定できません。空欄は「未記録」として扱います。</p>
       <div class="log-grid">
         <label class="log-field">朝食<textarea id="breakfastInput" maxlength="800" placeholder="例：ごはん小盛り、納豆1パック、みそ汁1杯"></textarea></label>
@@ -220,6 +236,16 @@ let storageLoadFailed = false;
 let lastResult = null;
 const chatHistory = []; // {role, content}
 const STORAGE_KEY = 'dailyHabitAdvisor.entries.v1';
+const CHALLENGE_STORAGE_KEY = 'dailyHabitAdvisor.challenges.v1';
+const CHALLENGE_REASONS = [
+  '時間がなかった',
+  '準備が大変だった',
+  '忘れていた',
+  '体調や気分が合わなかった',
+  '目標が難しかった',
+  'その他'
+];
+let savedChallenges = [];
 
 const METRICS = [
   {
@@ -298,6 +324,38 @@ function persistEntries(records) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
 }
 
+function isSavedChallenge(challenge) {
+  const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+  return challenge && typeof challenge.id === 'string' && typeof challenge.action === 'string'
+    && challenge.action.length > 0 && challenge.action.length <= 500
+    && typeof challenge.nextAction === 'string' && challenge.nextAction.length <= 700
+    && validDate(challenge.startedOn) && Array.isArray(challenge.checkins)
+    && challenge.checkins.length <= 7
+    && challenge.checkins.every((checkin, index) =>
+      checkin && validDate(checkin.date)
+      && (index === 0 || challenge.checkins[index - 1].date < checkin.date)
+      && ['done', 'difficult'].includes(checkin.outcome)
+      && typeof checkin.reason === 'string'
+      && (checkin.reason === '' || CHALLENGE_REASONS.includes(checkin.reason))
+      && typeof checkin.note === 'string' && checkin.note.length <= 200
+      && (checkin.outcome !== 'difficult' || CHALLENGE_REASONS.includes(checkin.reason))
+    );
+}
+
+function loadSavedChallenges() {
+  const raw = localStorage.getItem(CHALLENGE_STORAGE_KEY);
+  if (raw === null) return [];
+  const challenges = JSON.parse(raw);
+  if (!Array.isArray(challenges) || !challenges.every(isSavedChallenge)) {
+    throw new Error('チャレンジ保存データの形式が正しくありません。');
+  }
+  return challenges;
+}
+
+function persistChallenges(challenges) {
+  localStorage.setItem(CHALLENGE_STORAGE_KEY, JSON.stringify(challenges));
+}
+
 // ---------- API ----------
 const API_BASE_URL = 'https://seikatsu-habit-advisor-ai.suiginyu.workers.dev';
 
@@ -327,8 +385,8 @@ function categoryLabel(cat) {
 }
 
 // ---------- 記録 ----------
-async function analyzeLog(dailyLog) {
-  const user = `ユーザーが入力した今日の記録データ（空欄は未記録）:\n${JSON.stringify(dailyLog)}`;
+async function analyzeLog(dailyLog, challengeFeedback) {
+  const user = `ユーザーが入力した今日の記録とチャレンジの振り返りです。空欄は未記録です:\n${JSON.stringify({ dailyLog, challengeFeedback })}`;
   const raw = await callAI('analyze', [{ role: 'user', content: user }]);
   const s = raw.indexOf('{'), e = raw.lastIndexOf('}');
   if (s === -1 || e < s) throw new Error('JSONが見つかりません: ' + raw.slice(0, 150));
@@ -404,6 +462,217 @@ function render(result, date = new Date()) {
     });
   });
   $('result').classList.add('visible');
+  renderChallenge();
+}
+
+function challengeAdjustment(reason) {
+  return ({
+    '時間がなかった': '1分以内でできる部分だけにする',
+    '準備が大変だった': '追加の準備なしですぐできる形にする',
+    '忘れていた': '食事など、いつもの習慣の直後に行う',
+    '体調や気分が合わなかった': '体調を優先し、無理のない範囲にする（休む選択も含める）',
+    '目標が難しかった': '量や時間を半分以下にするか、まず1回だけにする',
+    'その他': '難しかった点を避けて、いちばん小さな形にする'
+  })[reason];
+}
+
+function makeChallengeFeedback() {
+  const challenge = savedChallenges[savedChallenges.length - 1];
+  if (!challenge || !challenge.checkins.length) return null;
+  const latest = challenge.checkins[challenge.checkins.length - 1];
+  return {
+    action: challenge.action,
+    previousOutcome: latest.outcome === 'done' ? 'できた' : '難しかった',
+    reason: latest.reason,
+    note: latest.note,
+    nextAction: challenge.nextAction
+  };
+}
+
+function saveChallengeStatus(message, isError = false) {
+  setStatus($('challengeStatus'), message, isError);
+}
+
+function appendChallengePicker(container) {
+  const suggestions = lastResult && Array.isArray(lastResult.suggestions) ? lastResult.suggestions : [];
+  if (!suggestions.length) {
+    const note = document.createElement('p');
+    note.className = 'challenge-status';
+    note.textContent = '今日の記録をAIに分析してもらうと、その提案からチャレンジを選べます。';
+    container.appendChild(note);
+    return;
+  }
+  const controls = document.createElement('div');
+  controls.className = 'challenge-controls';
+  const select = document.createElement('select');
+  select.setAttribute('aria-label', 'チャレンジにするAIの提案');
+  suggestions.forEach((suggestion, index) => {
+    const option = document.createElement('option');
+    option.value = suggestion;
+    option.textContent = suggestion;
+    if (index === 0) option.selected = true;
+    select.appendChild(option);
+  });
+  const button = document.createElement('button');
+  button.className = 'primary';
+  button.textContent = 'この行動で始める';
+  button.addEventListener('click', () => {
+    const challenge = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      action: select.value,
+      nextAction: select.value,
+      startedOn: dateKey(new Date()),
+      checkins: []
+    };
+    try {
+      const next = [...savedChallenges, challenge];
+      persistChallenges(next);
+      savedChallenges = next;
+      saveChallengeStatus('チャレンジを始めました。自分のペースで試してみましょう。');
+      renderChallenge();
+    } catch (err) {
+      console.error(err);
+      saveChallengeStatus(`チャレンジを保存できませんでした：${err.message}`, true);
+    }
+  });
+  controls.append(select, button);
+  container.appendChild(controls);
+}
+
+function renderChallenge() {
+  const container = $('challengeContent');
+  if (!container) return;
+  container.replaceChildren();
+  const challenge = savedChallenges[savedChallenges.length - 1];
+  if (!challenge || challenge.checkins.length >= 7) {
+    if (challenge && challenge.checkins.length >= 7) {
+      const complete = document.createElement('p');
+      complete.className = 'challenge-status';
+      complete.textContent = '7回の振り返りができました。できた回数ではなく、続けやすい形を見つけるためのチャレンジです。';
+      container.appendChild(complete);
+      const heading = document.createElement('p');
+      heading.className = 'challenge-action';
+      heading.textContent = `今回の行動：${challenge.action}`;
+      container.appendChild(heading);
+    }
+    appendChallengePicker(container);
+    return;
+  }
+
+  const count = document.createElement('p');
+  count.className = 'challenge-status';
+  count.textContent = `振り返り ${challenge.checkins.length} / 7 日（毎日でなくても大丈夫です）`;
+  container.appendChild(count);
+  const progress = document.createElement('progress');
+  progress.className = 'challenge-progress';
+  progress.max = 7;
+  progress.value = challenge.checkins.length;
+  progress.setAttribute('aria-label', `7日中${challenge.checkins.length}日の振り返り`);
+  container.appendChild(progress);
+  const today = dateKey(new Date());
+  const todayCheckin = challenge.checkins.find(checkin => checkin.date === today);
+  const action = document.createElement('p');
+  action.className = 'challenge-action';
+  action.textContent = `${todayCheckin && todayCheckin.outcome === 'difficult' ? '次回' : '今回'}の小さな行動：${challenge.nextAction || challenge.action}`;
+  container.appendChild(action);
+
+  if (todayCheckin) {
+    const status = document.createElement('p');
+    status.className = 'challenge-status';
+    status.textContent = todayCheckin.outcome === 'done'
+      ? '今日は「できた」と記録済みです。'
+      : `今日は「難しかった」と記録済みです。理由：${todayCheckin.reason}`;
+    container.appendChild(status);
+    if (todayCheckin.note) {
+      const note = document.createElement('p');
+      note.className = 'note';
+      note.textContent = `ひとこと：${todayCheckin.note}`;
+      container.appendChild(note);
+    }
+    return;
+  }
+
+  const latest = challenge.checkins[challenge.checkins.length - 1];
+  if (latest && latest.outcome === 'difficult') {
+    const adjusted = document.createElement('p');
+    adjusted.className = 'challenge-status';
+    adjusted.textContent = `前回の「${latest.reason}」を受けて、次は取り組みやすい形に調整しています。`;
+    container.appendChild(adjusted);
+  }
+  const controls = document.createElement('div');
+  controls.className = 'challenge-controls';
+  const done = document.createElement('button');
+  done.textContent = '今日はできた';
+  done.addEventListener('click', () => recordChallengeCheckin(challenge, 'done'));
+  const difficult = document.createElement('button');
+  difficult.textContent = '今日は難しかった';
+  difficult.addEventListener('click', () => showChallengeReasonForm(container, challenge));
+  controls.append(done, difficult);
+  container.appendChild(controls);
+}
+
+function showChallengeReasonForm(container, challenge) {
+  const existingControls = container.querySelector('.challenge-controls');
+  if (existingControls) existingControls.remove();
+  const form = document.createElement('div');
+  form.className = 'challenge-controls';
+  const reason = document.createElement('select');
+  reason.setAttribute('aria-label', '難しかった理由');
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = '理由を選んでください';
+  placeholder.disabled = true;
+  placeholder.selected = true;
+  reason.appendChild(placeholder);
+  CHALLENGE_REASONS.forEach(value => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = value;
+    reason.appendChild(option);
+  });
+  const note = document.createElement('input');
+  note.type = 'text';
+  note.maxLength = 200;
+  note.placeholder = '補足（任意・200文字まで）';
+  note.setAttribute('aria-label', '難しかった理由の補足');
+  const save = document.createElement('button');
+  save.className = 'primary';
+  save.textContent = '振り返りを保存';
+  save.addEventListener('click', () => {
+    if (!CHALLENGE_REASONS.includes(reason.value)) {
+      saveChallengeStatus('理由を選んでください。', true);
+      return;
+    }
+    recordChallengeCheckin(challenge, 'difficult', reason.value, note.value.trim());
+  });
+  form.append(reason, note, save);
+  container.appendChild(form);
+}
+
+function recordChallengeCheckin(challenge, outcome, reason = '', note = '') {
+  const today = dateKey(new Date());
+  if (challenge.checkins.some(checkin => checkin.date === today) || challenge.checkins.length >= 7) {
+    saveChallengeStatus('今日はすでに記録済みか、チャレンジが終了しています。', true);
+    return;
+  }
+  const checkin = { date: today, outcome, reason, note };
+  const updated = {
+    ...challenge,
+    checkins: [...challenge.checkins, checkin],
+    nextAction: outcome === 'difficult'
+      ? `「${challenge.action}」を${challengeAdjustment(reason)}`
+      : challenge.action
+  };
+  try {
+    const next = savedChallenges.map(item => item.id === challenge.id ? updated : item);
+    persistChallenges(next);
+    savedChallenges = next;
+    saveChallengeStatus(outcome === 'done' ? '振り返りを保存しました。できたことを大切に続けましょう。' : '振り返りを保存しました。次回は理由に合わせて小さく調整します。');
+    renderChallenge();
+  } catch (err) {
+    console.error(err);
+    saveChallengeStatus(`振り返りを保存できませんでした：${err.message}`, true);
+  }
 }
 
 $('submitBtn').addEventListener('click', async () => {
@@ -450,7 +719,7 @@ $('submitBtn').addEventListener('click', async () => {
   try {
     const today = dateKey(new Date());
     const rawText = JSON.stringify(dailyLog);
-    const result = normalizeResult(await analyzeLog(dailyLog), dailyLog);
+    const result = normalizeResult(await analyzeLog(dailyLog, makeChallengeFeedback()), dailyLog);
     const entry = {
       date: today,
       label: new Date(`${today}T00:00:00`).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }),
@@ -493,16 +762,20 @@ $('submitBtn').addEventListener('click', async () => {
 $('goChat').addEventListener('click', () => showTab('chat'));
 
 $('clearHistory').addEventListener('click', () => {
-  if (!savedEntries.length && !storageLoadFailed) { setStatus($('status'), '削除する履歴はありません。'); return; }
-  if (!confirm('このブラウザに保存された生活ログと分析結果を削除しますか？')) return;
+  if (!savedEntries.length && !savedChallenges.length && !storageLoadFailed) { setStatus($('status'), '削除する履歴はありません。'); return; }
+  if (!confirm('このブラウザに保存された生活ログ・分析結果・チャレンジの振り返りを削除しますか？')) return;
   try {
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(CHALLENGE_STORAGE_KEY);
     savedEntries = [];
+    savedChallenges = [];
     storageLoadFailed = false;
     entries.length = 0;
     lastResult = null;
     $('result').classList.remove('visible');
     setStatus($('status'), '保存済み履歴を削除しました。');
+    saveChallengeStatus('');
+    renderChallenge();
     renderGraph();
   } catch (err) {
     console.error(err);
@@ -596,6 +869,14 @@ try {
   storageLoadFailed = true;
   setStatus($('status'), '保存済み履歴を読み込めませんでした：' + err.message, true);
 }
+try {
+  savedChallenges = loadSavedChallenges();
+} catch (err) {
+  console.error(err);
+  storageLoadFailed = true;
+  saveChallengeStatus('チャレンジの振り返りを読み込めませんでした。履歴を削除してから再開してください。', true);
+}
+renderChallenge();
 
 function drawChart(m) {
   const W = 560, H = 250, L = 46, R = 16, T = 18, B = 34;

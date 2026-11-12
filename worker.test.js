@@ -52,6 +52,8 @@ test("forwards analysis through the fixed model and server-side system prompt", 
   assert.match(env.AI.calls[0].input.messages[0].content, /1日の記録だけから病気の発症/);
   assert.match(env.AI.calls[0].input.messages[0].content, /nutrition_balance/);
   assert.match(env.AI.calls[0].input.messages[0].content, /"steps"/);
+  assert.match(env.AI.calls[0].input.messages[0].content, /challengeFeedback/);
+  assert.match(env.AI.calls[0].input.messages[0].content, /難しかった理由と調整案/);
   assert.equal(env.AI.calls[0].input.messages.length, 2);
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), siteOrigin);
 });
