@@ -5,3 +5,11 @@ workers_dev = true
 
 [ai]
 binding = "AI"
+
+[[ratelimits]]
+name = "AI_RATE_LIMITER"
+namespace_id = "874203"
+
+  [ratelimits.simple]
+  limit = 6
+  period = 60

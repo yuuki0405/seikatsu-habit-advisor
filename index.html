@@ -29,9 +29,13 @@
 
   .entry-card { background: var(--paper); border: 1px solid var(--line); border-radius: 18px; padding: 26px 24px; box-shadow: 0 1px 2px rgba(11,46,51,0.04); }
   .entry-label { font-size: 13px; color: var(--sub); margin: 0 0 10px; }
-  textarea { width: 100%; min-height: 108px; resize: vertical; border: none; outline: none; font-family: inherit; font-size: 15.5px; color: var(--ink); line-height: 2;
-    background: repeating-linear-gradient(to bottom, transparent, transparent 34px, var(--line) 35px); }
-  textarea::placeholder { color: #a9bdb9; }
+  .log-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .log-field { display: flex; flex-direction: column; gap: 5px; color: var(--sub); font-size: 13px; }
+  .log-field.wide { grid-column: 1 / -1; }
+  .log-field textarea, .log-field input { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; outline: none; font: inherit; font-size: 14px; color: var(--ink); background: #fff; }
+  .log-field textarea { min-height: 76px; resize: vertical; line-height: 1.6; }
+  .log-field input:focus, .log-field textarea:focus { border-color: var(--primary); }
+  .log-field input::placeholder, .log-field textarea::placeholder { color: #a9bdb9; }
   .entry-footer { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 14px; }
   .hint { font-size: 12px; color: var(--sub); margin-right: auto; }
   button.submit { background: var(--primary-deep); color: #fff; border: none; border-radius: 999px; padding: 11px 26px; font-family: inherit; font-size: 14.5px; font-weight: 500; cursor: pointer; transition: background .15s ease, transform .1s ease; }
@@ -51,10 +55,10 @@
   .tag { display: inline-flex; align-items: baseline; gap: 6px; background: var(--mint-soft); color: var(--primary-deep); border-radius: 999px; padding: 7px 14px; font-size: 13px; }
   .tag b { font-weight: 700; }
   .tag span { color: var(--sub); font-size: 12px; }
-  .score-row { display: flex; align-items: center; gap: 22px; background: var(--paper); border: 1px solid var(--line); border-radius: 18px; padding: 20px 22px; margin-bottom: 22px; }
-  .score-num { font-family: 'Shippori Mincho', serif; font-size: 15px; color: var(--sub); }
-  .score-num b { font-size: 34px; color: var(--primary-deep); font-weight: 700; }
-  .feedback-text { font-size: 13.5px; color: var(--primary); line-height: 1.6; }
+  .analysis-section { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin: 12px 0; }
+  .analysis-section h2 { font-size: 15px; margin: 0 0 8px; color: var(--primary-deep); }
+  .analysis-section ul { margin: 0; padding-left: 20px; font-size: 14px; }
+  .analysis-section li + li { margin-top: 6px; }
   .suggestions { list-style: none; padding: 0; margin: 0 0 8px; }
   .suggestions li { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14.5px; }
   .suggestions li:last-child { border-bottom: none; }
@@ -91,6 +95,12 @@
   .empty { color: var(--sub); font-size: 14px; padding: 30px 0; text-align: center; }
   .sample-btn { background: none; border: 1px dashed var(--sub); color: var(--sub); border-radius: 999px; padding: 6px 14px; font-family: inherit; font-size: 12.5px; cursor: pointer; margin-top: 10px; }
   footer { margin-top: 40px; font-size: 12px; color: #9fb3af; text-align: center; }
+  @media (max-width: 520px) {
+    body { padding: 28px 14px 60px; }
+    .entry-card { padding: 20px 16px; }
+    .log-grid { grid-template-columns: 1fr; }
+    .log-field.wide { grid-column: auto; }
+  }
 </style>
 </head>
 <body>
@@ -110,9 +120,21 @@
   <div class="panel active" id="panel-log">
     <div class="entry-card">
       <p class="entry-label">今日の記録</p>
-      <textarea id="logInput" placeholder="例）今日はコーヒー3杯、昼はラーメン、夜はコンビニ弁当。睡眠5時間。気分は普通。"></textarea>
+      <p class="note">送信すると記録内容はAI応答の生成のためCloudflare Workers AIへ送信されます。このアプリはサーバー上に記録を保存しません。個人情報や共有したくない内容は入力しないでください。</p>
+      <p class="note">食べたもの・量は分かる範囲で記入してください。量や商品情報がない場合、栄養素の数値は推定できません。空欄は「未記録」として扱います。</p>
+      <div class="log-grid">
+        <label class="log-field">朝食<textarea id="breakfastInput" maxlength="800" placeholder="例：ごはん小盛り、納豆1パック、みそ汁1杯"></textarea></label>
+        <label class="log-field">昼食<textarea id="lunchInput" maxlength="800" placeholder="例：おにぎり2個、サラダチキン1個"></textarea></label>
+        <label class="log-field">夕食<textarea id="dinnerInput" maxlength="800" placeholder="例：ごはん1膳、焼き魚1切れ、野菜のおかず"></textarea></label>
+        <label class="log-field">おやつ・間食<textarea id="snacksInput" maxlength="800" placeholder="例：チョコレート2かけ、ヨーグルト1個"></textarea></label>
+        <label class="log-field wide">飲み物（種類・量）<textarea id="drinksInput" maxlength="800" placeholder="例：水500ml、緑茶350ml、エナジードリンク1本（商品名・容量）"></textarea></label>
+        <label class="log-field">水・お茶などの水分量（ml・任意）<input id="waterInput" type="number" min="0" max="10000" step="50" inputmode="numeric" placeholder="例：1200"></label>
+        <label class="log-field">運動の内容<input id="exerciseInput" type="text" maxlength="300" placeholder="例：通学で徒歩、軽い筋トレ"></label>
+        <label class="log-field">運動時間（分・任意）<input id="exerciseMinutesInput" type="number" min="0" max="1440" step="1" inputmode="numeric" placeholder="例：30"></label>
+        <label class="log-field">睡眠時間（時間・任意）<input id="sleepInput" type="number" min="0" max="24" step="0.25" inputmode="decimal" placeholder="例：7.5"></label>
+      </div>
       <div class="entry-footer">
-        <span class="hint">形式は自由です。思ったことをそのまま書いてください。</span>
+        <span class="hint">食事・飲み物など、どれか1項目以上を入力してください。</span>
         <button class="submit" id="submitBtn">記録する</button>
       </div>
       <p class="status" id="status"></p>
@@ -122,12 +144,13 @@
       <p class="result-date" id="resultDate"></p>
       <p class="summary-block" id="summaryText"></p>
       <div class="tags" id="tagList"></div>
-      <div class="score-row">
-        <div class="score-num"><b id="scoreValue">–</b><br>生活習慣スコア</div>
-        <div class="feedback-text" id="feedbackText"></div>
-      </div>
-      <p class="note" id="scoreBasis"></p>
-      <ul class="suggestions" id="suggestionList"></ul>
+      <p class="note" id="dataCoverage"></p>
+      <section class="analysis-section"><h2>食事バランスで見えたこと</h2><ul id="balanceList"></ul></section>
+      <section class="analysis-section"><h2>不足している可能性・判断できないこと</h2><ul id="gapList"></ul></section>
+      <section class="analysis-section"><h2>これから増やせるもの</h2><ul id="increaseList"></ul></section>
+      <section class="analysis-section"><h2>同じ傾向が続く場合の一般的な注意</h2><ul id="cautionList"></ul></section>
+      <section class="analysis-section"><h2>まず試せること</h2><ul id="suggestionList"></ul></section>
+      <p class="note">この分析は入力された1日の記録に基づく一般的な情報で、栄養量の測定、病気の予測・診断ではありません。病気のリスクは年齢、体格、既往歴、複数日の食事などで異なります。体調に不安がある場合は医療機関や管理栄養士にご相談ください。</p>
       <button class="go-chat" id="goChat">この結果についてAIに相談する →</button>
     </section>
   </div>
@@ -135,6 +158,7 @@
   <!-- AIに相談 -->
   <div class="panel" id="panel-chat">
     <div class="chat-box">
+      <p class="note">相談内容と会話の文脈はAI応答の生成のためCloudflare Workers AIへ送信されます。このアプリはサーバー上に会話を保存しません。個人情報や共有したくない内容は入力しないでください。</p>
       <div class="quick" id="quickBtns">
         <button>今日の記録を踏まえて、明日まず何を変えればいい？</button>
         <button>睡眠を改善するコツを教えて</button>
@@ -159,19 +183,19 @@
       <div class="metric-tabs" id="metricTabs"></div>
       <div class="chart-card">
         <svg id="chartSvg" viewBox="0 0 560 250" role="img" aria-label="記録の推移グラフ"></svg>
-        <div class="legend"><span><i style="background:var(--primary)"></i>あなたの記録</span><span><i style="background:var(--plum)"></i>健康的な成人の目安</span></div>
+        <div class="legend"><span><i style="background:var(--primary)"></i>あなたの記録</span></div>
       </div>
       <div class="chart-card">
-        <div style="font-size:14px;font-weight:700;margin-bottom:14px;">目安との比較（記録の平均）</div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:14px;">記録した数値の平均（未入力日は除外）</div>
         <div id="compareList"></div>
       </div>
-      <p class="note">※ 比較の基準は「平均的な人の実測値」ではなく、一般的な健康づくりの指針に基づく<b>目安値</b>です（睡眠7時間、水分1,500ml、カフェイン400mg以下、身体活動60分）。個人差があり、医学的な診断ではありません。</p>
+      <p class="note">グラフは入力された数値の推移を示すもので、健康状態の評価や診断ではありません。</p>
       <button class="sample-btn" id="sampleBtn2">サンプルデータ（7日分）を読み込む</button>
     </div>
   </div>
 
   <footer>
-    記録はこのブラウザ内に保存され、サーバーには保存されません。入力した生活ログもこの端末に残ります。
+    記録はこのブラウザ内に保存されます。端末を共有している場合は、利用後に保存済み履歴を削除してください。
     <button class="sample-btn" id="clearHistory">保存済み履歴を削除</button>
   </footer>
 </main>
@@ -185,12 +209,11 @@ let lastResult = null;
 const chatHistory = []; // {role, content}
 const STORAGE_KEY = 'dailyHabitAdvisor.entries.v1';
 
-// 健康的な成人の目安値（平均ではなくガイドライン的な目安）
 const METRICS = [
-  { key: 'sleep_h',      label: '睡眠',     unit: '時間', ref: 7,    type: 'target', max: 10 },
-  { key: 'water_ml',     label: '水分',     unit: 'ml',   ref: 1500, type: 'target', max: 2500 },
-  { key: 'caffeine_mg',  label: 'カフェイン', unit: 'mg',   ref: 400,  type: 'limit',  max: 700 },
-  { key: 'exercise_min', label: '運動',     unit: '分',   ref: 60,   type: 'target', max: 120 }
+  { key: 'sleep_h', label: '睡眠', unit: '時間', max: 10 },
+  { key: 'water_ml', label: '水分', unit: 'ml', max: 2500 },
+  { key: 'caffeine_mg', label: 'カフェイン', unit: 'mg', max: 700 },
+  { key: 'exercise_min', label: '運動', unit: '分', max: 120 }
 ];
 let activeMetric = 'sleep_h';
 
@@ -213,25 +236,6 @@ function dateKey(date) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
 
-function calculateScore(metrics, mealMoodRating) {
-  const components = [
-    { label: '睡眠', value: metrics.sleep_h, weight: 30, ratio: value => Math.max(0, 1 - Math.abs(value - 7) / 7) },
-    { label: '水分', value: metrics.water_ml, weight: 20, ratio: value => Math.min(1, value / 1500) },
-    { label: 'カフェイン', value: metrics.caffeine_mg, weight: 15, ratio: value => Math.max(0, 1 - Math.max(0, value - 400) / 400) },
-    { label: '運動', value: metrics.exercise_min, weight: 20, ratio: value => Math.min(1, value / 60) },
-    { label: '食事・気分', value: mealMoodRating, weight: 15, ratio: value => value / 5 }
-  ].filter(component => typeof component.value === 'number' && Number.isFinite(component.value));
-  const weight = components.reduce((total, component) => total + component.weight, 0);
-  if (!weight) return { score: null, basis: '数値が記録されていないため、スコアを算出できません。' };
-
-  const points = components.reduce((total, component) => total + component.weight * component.ratio(component.value), 0);
-  const basis = '算出根拠：' + components.map(component => {
-    const earned = Math.round(component.weight * component.ratio(component.value) * 10) / 10;
-    return `${component.label} ${earned}/${component.weight}点`;
-  }).join('・') + '。配点は睡眠30（水準7時間との差）・水分20（1,500ml目安）・カフェイン15（400mg超過で減点）・運動20（60分目安）・食事/気分15（AI評価）。未入力項目は除外して配点を再調整します。';
-  return { score: Math.round(points / weight * 100), basis };
-}
-
 function isSavedEntry(entry) {
   const validMetric = value => value === null || (typeof value === 'number' && Number.isFinite(value) && value >= 0);
   return entry && typeof entry.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(entry.date)
@@ -241,7 +245,11 @@ function isSavedEntry(entry) {
     && (entry.meal_mood_rating === null || (Number.isInteger(entry.meal_mood_rating) && entry.meal_mood_rating >= 1 && entry.meal_mood_rating <= 5))
     && Array.isArray(entry.tags) && entry.tags.every(tag => tag && typeof tag.category === 'string' && typeof tag.value === 'string')
     && typeof entry.summary === 'string' && typeof entry.feedback === 'string'
-    && Array.isArray(entry.suggestions) && entry.suggestions.every(suggestion => typeof suggestion === 'string');
+    && Array.isArray(entry.suggestions) && entry.suggestions.every(suggestion => typeof suggestion === 'string')
+    && ['nutrition_balance', 'gaps', 'increase', 'long_term_cautions'].every(key =>
+      entry[key] === undefined || (Array.isArray(entry[key]) && entry[key].every(item => typeof item === 'string'))
+    )
+    && (entry.dailyLog === undefined || (entry.dailyLog && typeof entry.dailyLog === 'object' && !Array.isArray(entry.dailyLog)));
 }
 
 function loadSavedEntries() {
@@ -254,15 +262,6 @@ function loadSavedEntries() {
 
 function persistEntries(records) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-}
-
-function scoreFeedback(score, previousScore) {
-  if (score === null) return '数値を記録すると、スコアを算出できます。';
-  if (previousScore === null) return '入力された項目をもとに算出しました。次回の記録から比較できます。';
-  const difference = score - previousScore;
-  if (difference > 0) return `前回より${difference}点上がりました。記録できた習慣を続けてみましょう。`;
-  if (difference < 0) return `前回より${Math.abs(difference)}点下がりました。無理のない範囲で振り返ってみましょう。`;
-  return '前回と同じスコアです。記録を続けて変化を見ていきましょう。';
 }
 
 // ---------- API ----------
@@ -294,8 +293,8 @@ function categoryLabel(cat) {
 }
 
 // ---------- 記録 ----------
-async function analyzeLog(text) {
-  const user = `ログ：「${text}」`;
+async function analyzeLog(dailyLog) {
+  const user = `ユーザーが入力した今日の記録データ（空欄は未記録）:\n${JSON.stringify(dailyLog)}`;
   const raw = await callAI('analyze', [{ role: 'user', content: user }]);
   const s = raw.indexOf('{'), e = raw.lastIndexOf('}');
   if (s === -1 || e < s) throw new Error('JSONが見つかりません: ' + raw.slice(0, 150));
@@ -303,9 +302,12 @@ async function analyzeLog(text) {
   catch (err) { throw new Error('JSON解析エラー: ' + err.message); }
 }
 
-function normalizeResult(result) {
+function normalizeResult(result, dailyLog = null) {
+  const listKeys = ['nutrition_balance', 'gaps', 'increase', 'long_term_cautions'];
   if (!result || !Array.isArray(result.tags) || !result.tags.every(tag => tag && typeof tag.category === 'string' && typeof tag.value === 'string')
       || typeof result.summary !== 'string' || !Array.isArray(result.suggestions) || !result.suggestions.every(suggestion => typeof suggestion === 'string')
+      || (dailyLog && listKeys.some(key => !Array.isArray(result[key]) || !result[key].every(item => typeof item === 'string')))
+      || listKeys.some(key => result[key] !== undefined && (!Array.isArray(result[key]) || !result[key].every(item => typeof item === 'string')))
       || !result.metrics || typeof result.metrics !== 'object' || Array.isArray(result.metrics)) {
     throw new Error('分析結果の形式が正しくありません。');
   }
@@ -317,13 +319,19 @@ function normalizeResult(result) {
     }
     metrics[metric.key] = value ?? null;
   }
-  if (result.meal_mood_rating !== null && result.meal_mood_rating !== undefined
-      && (!Number.isInteger(result.meal_mood_rating) || result.meal_mood_rating < 1 || result.meal_mood_rating > 5)) {
-    throw new Error('食事・気分の評価が正しくありません。');
+  if (dailyLog) {
+    if (dailyLog.sleep_h !== null) metrics.sleep_h = dailyLog.sleep_h;
+    if (dailyLog.water_ml !== null) metrics.water_ml = dailyLog.water_ml;
+    if (dailyLog.exercise_min !== null) metrics.exercise_min = dailyLog.exercise_min;
   }
-  const mealMoodRating = result.meal_mood_rating ?? null;
-  const scoring = calculateScore(metrics, mealMoodRating);
-  return { ...result, metrics, meal_mood_rating: mealMoodRating, score: scoring.score, scoreBasis: scoring.basis };
+  return {
+    ...result,
+    metrics,
+    nutrition_balance: result.nutrition_balance || ['以前の形式で保存された記録のため、食事バランスの詳細分析はありません。'],
+    gaps: result.gaps || ['以前の形式で保存された記録のため、不足項目の詳細分析はありません。'],
+    increase: result.increase || ['食事の内容や量を数日分記録すると、傾向を振り返りやすくなります。'],
+    long_term_cautions: result.long_term_cautions || ['1日の記録だけから病気のリスクを判断することはできません。']
+  };
 }
 
 function render(result, date = new Date()) {
@@ -339,23 +347,63 @@ function render(result, date = new Date()) {
     el.append(b, v); $('tagList').appendChild(el);
   });
 
-  $('scoreValue').textContent = result.score != null ? result.score : '–';
-  $('feedbackText').textContent = result.feedback || '';
-  $('scoreBasis').textContent = result.scoreBasis;
-
-  $('suggestionList').innerHTML = '';
-  result.suggestions.forEach(s => {
-    const li = document.createElement('li');
-    const c = document.createElement('span'); c.className = 'check'; c.textContent = '✓';
-    const t = document.createElement('span'); t.textContent = s;
-    li.append(c, t); $('suggestionList').appendChild(li);
+  const recordedCount = result.dailyLog
+    ? Object.values(result.dailyLog).filter(value => value !== null && value !== '').length
+    : null;
+  $('dataCoverage').textContent = recordedCount === null
+    ? '以前に保存した記録です。空欄や記録のない内容は分析できません。'
+    : `${recordedCount}項目を入力しました。空欄は未記録として扱い、食事量が不明な場合は栄養素量を推定していません。`;
+  [
+    ['balanceList', result.nutrition_balance],
+    ['gapList', result.gaps],
+    ['increaseList', result.increase],
+    ['cautionList', result.long_term_cautions],
+    ['suggestionList', result.suggestions]
+  ].forEach(([id, items]) => {
+    const list = $(id);
+    list.innerHTML = '';
+    items.forEach(item => {
+      const li = document.createElement('li');
+      li.textContent = item;
+      list.appendChild(li);
+    });
   });
   $('result').classList.add('visible');
 }
 
 $('submitBtn').addEventListener('click', async () => {
-  const text = $('logInput').value.trim();
-  if (!text) { setStatus($('status'), '今日の記録を入力してください。', true); return; }
+  const dailyLog = {
+    breakfast: $('breakfastInput').value.trim(),
+    lunch: $('lunchInput').value.trim(),
+    dinner: $('dinnerInput').value.trim(),
+    snacks: $('snacksInput').value.trim(),
+    drinks: $('drinksInput').value.trim(),
+    water_ml: null,
+    exercise: $('exerciseInput').value.trim(),
+    exercise_min: null,
+    sleep_h: null
+  };
+  const readNumber = (id, label, min, max) => {
+    const raw = $(id).value.trim();
+    if (!raw) return null;
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < min || value > max) {
+      throw new Error(`${label}は${min}〜${max}の範囲で入力してください。`);
+    }
+    return value;
+  };
+  try {
+    dailyLog.water_ml = readNumber('waterInput', '水分量', 0, 10000);
+    dailyLog.exercise_min = readNumber('exerciseMinutesInput', '運動時間', 0, 1440);
+    dailyLog.sleep_h = readNumber('sleepInput', '睡眠時間', 0, 24);
+  } catch (err) {
+    setStatus($('status'), err.message, true);
+    return;
+  }
+  if (!Object.values(dailyLog).some(value => value !== null && value !== '')) {
+    setStatus($('status'), '食事・飲み物・運動など、1項目以上を入力してください。', true);
+    return;
+  }
   if (storageLoadFailed) {
     setStatus($('status'), '保存済み履歴を読み込めないため、履歴を削除してから記録してください。', true);
     return;
@@ -364,21 +412,24 @@ $('submitBtn').addEventListener('click', async () => {
   setStatus($('status'), 'AIが分析しています…');
   try {
     const today = dateKey(new Date());
-    const previousEntries = savedEntries.filter(entry => entry.date < today);
-    const previous = previousEntries[previousEntries.length - 1];
-    const result = normalizeResult(await analyzeLog(text));
+    const rawText = JSON.stringify(dailyLog);
+    const result = normalizeResult(await analyzeLog(dailyLog), dailyLog);
     const entry = {
       date: today,
       label: new Date(`${today}T00:00:00`).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }),
-      rawText: text,
+      rawText,
+      dailyLog,
       metrics: result.metrics,
-      meal_mood_rating: result.meal_mood_rating ?? null,
+      meal_mood_rating: null,
       tags: result.tags,
       summary: result.summary,
+      nutrition_balance: result.nutrition_balance,
+      gaps: result.gaps,
+      increase: result.increase,
+      long_term_cautions: result.long_term_cautions,
       suggestions: result.suggestions,
-      score: result.score,
-      scoreBasis: result.scoreBasis,
-      feedback: scoreFeedback(result.score, previous ? previous.score : null)
+      score: null,
+      feedback: ''
     };
     if (!isSavedEntry(entry)) throw new Error('分析結果を保存できる形式に整えられませんでした。');
     const nextSavedEntries = [...savedEntries.filter(record => record.date !== today), entry].sort((a, b) => a.date.localeCompare(b.date));
@@ -387,14 +438,14 @@ $('submitBtn').addEventListener('click', async () => {
     } catch (err) {
       console.error(err);
       entries.splice(0, entries.length, ...savedEntries.filter(record => record.date !== today), entry);
-      lastResult = { ...entry, text };
+      lastResult = { ...entry, text: rawText };
       render(entry, new Date(`${today}T00:00:00`));
       setStatus($('status'), '分析は完了しましたが、履歴を保存できませんでした：' + err.message, true);
       return;
     }
     savedEntries = nextSavedEntries;
     entries.splice(0, entries.length, ...savedEntries);
-    lastResult = { ...entry, text };
+    lastResult = { ...entry, text: rawText };
     render(entry, new Date(`${today}T00:00:00`));
     setStatus($('status'), '');
   } catch (err) {
@@ -402,7 +453,6 @@ $('submitBtn').addEventListener('click', async () => {
     setStatus($('status'), '処理に失敗しました：' + err.message, true);
   } finally { $('submitBtn').disabled = false; }
 });
-$('logInput').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) $('submitBtn').click(); });
 $('goChat').addEventListener('click', () => showTab('chat'));
 
 $('clearHistory').addEventListener('click', () => {
@@ -433,10 +483,8 @@ function addBubble(role, text) {
 function buildChatContext() {
   let ctx = '';
   if (lastResult) {
-    ctx += `【今日のログ】${lastResult.text}\n【AIの要約】${lastResult.summary}\n【スコア】${lastResult.score}点\n`;
+    ctx += `【今日の記録】${lastResult.text}\n【AIの要約】${lastResult.summary}\n`;
   }
-  const real = entries.filter(e => !e.sample).slice(-5);
-  if (real.length > 1) ctx += '【最近のスコア推移】' + real.map(e => `${e.label}:${e.score}`).join(', ') + '\n';
   return ctx || '（まだ今日の記録はありません）';
 }
 
@@ -470,7 +518,7 @@ function loadSample() {
   const now = new Date();
   base.forEach((v, i) => {
     const d = new Date(now); d.setDate(now.getDate() - (base.length - 1 - i));
-    entries.push({ label: (d.getMonth() + 1) + '/' + d.getDate(), score: [48, 54, 52, 63, 70, 74, 81][i],
+    entries.push({ label: (d.getMonth() + 1) + '/' + d.getDate(),
       metrics: { sleep_h: v[0], water_ml: v[1], caffeine_mg: v[2], exercise_min: v[3] }, sample: true });
   });
   renderGraph();
@@ -513,7 +561,7 @@ function drawChart(m) {
   const W = 560, H = 250, L = 46, R = 16, T = 18, B = 34;
   const pts = entries.map((e, i) => ({ i, label: e.label, v: e.metrics ? e.metrics[m.key] : null }));
   const vals = pts.filter(p => typeof p.v === 'number');
-  const maxV = Math.max(m.max, ...vals.map(p => p.v), m.ref * 1.1);
+  const maxV = Math.max(m.max, ...vals.map(p => p.v));
   const x = (i) => entries.length === 1 ? (L + W - R) / 2 : L + (W - L - R) * i / (entries.length - 1);
   const y = (v) => T + (H - T - B) * (1 - v / maxV);
   const NS = 'http://www.w3.org/2000/svg';
@@ -526,10 +574,6 @@ function drawChart(m) {
     add('line', { x1: L, x2: W - R, y1: yy, y2: yy, stroke: '#dbe6e3', 'stroke-width': 1 });
     add('text', { x: L - 8, y: yy + 4, 'text-anchor': 'end', 'font-size': 11, fill: '#5c7a76' }, Math.round(v * 10) / 10);
   }
-  // reference line
-  add('line', { x1: L, x2: W - R, y1: y(m.ref), y2: y(m.ref), stroke: '#6d2e46', 'stroke-width': 2, 'stroke-dasharray': '6 5' });
-  add('text', { x: W - R, y: y(m.ref) - 6, 'text-anchor': 'end', 'font-size': 11.5, fill: '#6d2e46' },
-    (m.type === 'limit' ? '上限の目安 ' : '目安 ') + m.ref + m.unit);
   // x labels
   pts.forEach(p => add('text', { x: x(p.i), y: H - 12, 'text-anchor': 'middle', 'font-size': 11, fill: '#5c7a76' }, p.label));
   // line
@@ -553,14 +597,12 @@ function drawCompare() {
     const info = document.createElement('span');
     if (!vals.length) { info.textContent = '記録なし'; head.append(name, info); row.appendChild(head); list.appendChild(row); return; }
     const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-    const pct = Math.round(avg / m.ref * 100);
-    info.textContent = `平均 ${Math.round(avg * 10) / 10}${m.unit} ／ 目安 ${m.ref}${m.unit}（${pct}%）`;
+    info.textContent = `平均 ${Math.round(avg * 10) / 10}${m.unit} ／ ${vals.length}日分`;
     head.append(name, info);
     const bg = document.createElement('div'); bg.className = 'bar-bg';
     const fill = document.createElement('div'); fill.className = 'bar-fill';
-    const warn = m.type === 'limit' ? pct > 100 : pct < 80;
-    if (warn) fill.classList.add('warn');
-    fill.style.width = Math.min(100, pct) + '%';
+    const pct = Math.min(100, Math.round(avg / m.max * 100));
+    fill.style.width = pct + '%';
     bg.appendChild(fill); row.append(head, bg); list.appendChild(row);
   });
 }
